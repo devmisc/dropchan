@@ -3,12 +3,19 @@ package dropchan
 type DropChan struct {
 	input  chan interface{}
 	buffer chan interface{}
+	handle HandleFunc
 }
 
-func New(size int, drop ...bool) *DropChan {
-	r := &DropChan{}
+type HandleFunc func(data interface{})
 
-	if len(drop) > 0 && drop[0] {
+func New(size int, drop bool, handle HandleFunc) *DropChan {
+	r := &DropChan{handle: handle}
+
+	if size <= 0 {
+		size = 1
+	}
+
+	if drop {
 		r.input = make(chan interface{})
 		r.buffer = make(chan interface{}, size)
 
@@ -26,8 +33,12 @@ func (r *DropChan) run() {
 		select {
 		case r.buffer <- v:
 		default:
-			<-r.buffer
+			d := <-r.buffer
 			r.buffer <- v
+
+			if r.handle != nil {
+				r.handle(d)
+			}
 		}
 	}
 
